@@ -175,7 +175,29 @@ ELO_RE = re.compile(
     r"^Elo difference: (?P<elo>[-0-9.inf]+) \+/- (?P<err>[-0-9.nan]+), "
     r"LOS: (?P<los>[-0-9.nan]+) %, DrawRatio: (?P<draw>[-0-9.]+) %"
 )
-SPRT_RE = re.compile(r"^SPRT: llr (?P<llr>[-0-9.]+)")
+SPRT_RE = re.compile(r"^SPRT: llr (?P<llr>[-0-9.]+).*ubound (?P<ubound>[-0-9.inf]+)")
+
+
+def format_decimal(value: str, decimals: int) -> str:
+    try:
+        number = float(value)
+    except ValueError:
+        return value
+    if number != number or number in (float("inf"), float("-inf")):
+        return value
+    return f"{number:.{decimals}f}"
+
+
+def format_llr(llr: str, ubound: str) -> str:
+    try:
+        llr_value = float(llr)
+        ubound_value = float(ubound)
+    except ValueError:
+        return llr
+    if ubound_value != ubound_value or ubound_value in (0.0, float("inf"), float("-inf")):
+        return llr
+    pct = llr_value / abs(ubound_value) * 100.0
+    return f"{llr_value:.2f}/{ubound_value:.2f} ({pct:.0f}%)"
 
 
 class ProgressFormatter:
@@ -199,12 +221,13 @@ class ProgressFormatter:
         if match := SPRT_RE.match(line):
             if not self.score or not self.elo:
                 return line
+            width = len(str(self.total_games))
             return (
-                f"[{self.score['completed']}/{self.total_games}] "
-                f"DrawRatio: {self.elo['draw']} %, "
-                f"Elo difference: {self.elo['elo']} +/- {self.elo['err']}, "
-                f"LOS: {self.elo['los']} %, "
-                f"LLR: {match['llr']}\n"
+                f"[{int(self.score['completed']):>{width}}/{self.total_games}] "
+                f"Elo {format_decimal(self.elo['elo'], 1)} +/- {format_decimal(self.elo['err'], 1)} | "
+                f"LLR {format_llr(match['llr'], match['ubound'])} | "
+                f"LOS {format_decimal(self.elo['los'], 1)}% | "
+                f"draw {format_decimal(self.elo['draw'], 1)}%\n"
             )
 
         if line.startswith("Player:") or line.startswith("   \""):
