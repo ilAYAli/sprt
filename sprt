@@ -230,9 +230,9 @@ class ProgressFormatter:
             width = len(str(self.total_games))
             return (
                 f"[{int(self.score['completed']):>{width}}/{self.total_games}] "
-                f"Elo {format_field(self.elo['elo'], 1, 6)} +/- {format_field(self.elo['err'], 1, 6)} | "
+                f"Elo {format_field(self.elo['elo'], 1, 5)} +/- {format_field(self.elo['err'], 1, 5)} | "
                 f"LLR {format_llr(match['llr'], match['ubound'])} | "
-                f"LOS {format_field(self.elo['los'], 1, 6)}% | "
+                f"LOS {format_field(self.elo['los'], 1, 4)}% | "
                 f"draw {format_field(self.elo['draw'], 1, 5)}%\n"
             )
 
