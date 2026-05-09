@@ -1,0 +1,271 @@
+#!/usr/bin/env python3
+import argparse
+import base64
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+from pathlib import Path
+
+
+def parse_args() -> argparse.Namespace:
+    script_dir = Path(__file__).resolve().parent
+    assets_dir = script_dir.parent
+
+    parser = argparse.ArgumentParser(description="Run an Enyo SPRT with fastchess")
+    parser.add_argument("--candidate", "-c", default="./build/enyo")
+    parser.add_argument("--reference", "-r", default=str(assets_dir / "engines" / "reference"))
+    parser.add_argument("--games", type=int, default=500)
+    parser.add_argument("--concurrency", type=int, default=10)
+    parser.add_argument("--threads", "-t", type=int, default=1)
+    parser.add_argument("--tc", default="10+0.1")
+    parser.add_argument("--book", default=str(assets_dir / "books" / "UHO_Lichess_4852_v1.epd"))
+    parser.add_argument("--book-format", default="epd")
+    parser.add_argument("--ntfy-url", default="")
+    parser.add_argument("--name", "-n", default="sprt")
+    parser.add_argument("--candidate-option", action="append", default=[], metavar="NAME=VAL")
+    parser.add_argument("--reference-option", action="append", default=[], metavar="NAME=VAL")
+    parser.add_argument("--order", default="random")
+    parser.add_argument("--srand", default="")
+    return parser.parse_args()
+
+
+def find_fastchess() -> list[str]:
+    found = shutil.which("fastchess")
+    if found:
+        return [found]
+
+    home_fastchess = Path.home() / "local" / "bin" / "fastchess"
+    if home_fastchess.is_file() and os.access(home_fastchess, os.X_OK):
+        return [str(home_fastchess)]
+
+    print("fastchess not found", file=sys.stderr)
+    sys.exit(1)
+
+
+def require_executable(path: str, label: str) -> None:
+    if not os.path.isfile(path) or not os.access(path, os.X_OK):
+        print(f"{label} engine is not executable: {path}", file=sys.stderr)
+        sys.exit(1)
+
+
+def require_file(path: str, label: str) -> None:
+    if not os.path.isfile(path):
+        print(f"{label} not found: {path}", file=sys.stderr)
+        sys.exit(1)
+
+
+def load_ntfy_auth() -> str:
+    if os.environ.get("LICHESS_NTFY_AUTH"):
+        return os.environ["LICHESS_NTFY_AUTH"]
+
+    ntfy_file = Path.home() / ".ntfy"
+    if not ntfy_file.is_file():
+        return ""
+
+    for line in ntfy_file.read_text(errors="ignore").splitlines():
+        line = line.strip()
+        if line.startswith("export "):
+            line = line[7:]
+        if not line.startswith("LICHESS_NTFY_AUTH="):
+            continue
+        value = line.split("=", 1)[1].strip()
+        if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
+            value = value[1:-1]
+        return value
+    return ""
+
+
+def post_ntfy(url: str, message: str) -> None:
+    if not url:
+        return
+
+    data = message.encode()
+    req = urllib.request.Request(url, data=data, method="POST")
+    auth = load_ntfy_auth()
+    if auth:
+        token = base64.b64encode(auth.encode()).decode()
+        req.add_header("Authorization", f"Basic {token}")
+
+    try:
+        urllib.request.urlopen(req, timeout=10).close()
+    except (OSError, urllib.error.URLError):
+        pass
+
+
+def engine_args(name: str, command: str, threads: int, extra_options: list[str]) -> list[str]:
+    args = [
+        "-engine",
+        f"name={name}",
+        "proto=uci",
+        "restart=on",
+        f"cmd={command}",
+        f"option.Threads={threads}",
+    ]
+    args.extend(f"option.{opt}" for opt in extra_options)
+    return args
+
+
+def build_command(args: argparse.Namespace, log_pgn: Path) -> list[str]:
+    rounds = max(1, (args.games + 1) // 2)
+    cmd = find_fastchess()
+    cmd += [
+        "-openings",
+        f"file={args.book}",
+        f"format={args.book_format}",
+        f"order={args.order}",
+        *engine_args("candidate", args.candidate, args.threads, args.candidate_option),
+        *engine_args("reference", args.reference, args.threads, args.reference_option),
+        "-concurrency",
+        str(args.concurrency),
+        "-ratinginterval",
+        "2",
+        "-rounds",
+        str(rounds),
+        "-repeat",
+        "-pgnout",
+        f"file={log_pgn}",
+        "notation=san",
+        "append=false",
+        "-each",
+        f"tc={args.tc}",
+        "-recover",
+        "-output",
+        "format=cutechess",
+        "-sprt",
+        "elo0=0",
+        "elo1=10",
+        "alpha=0.05",
+        "beta=0.05",
+    ]
+    if args.srand:
+        cmd += ["-srand", args.srand]
+    return cmd
+
+
+NOISY_FASTCHESS_PREFIXES = (
+    "Warning; Bestmove does not match beginning of last PV",
+    "Warning; PV continues after fifty-move rule",
+    "Info; info depth",
+    "Position; fen",
+    "Moves;",
+)
+
+
+SCORE_RE = re.compile(
+    r"^Score of candidate vs reference: "
+    r"(?P<wins>\d+) - (?P<losses>\d+) - (?P<draws>\d+)"
+    r"\s+\[(?P<rate>[0-9.]+)\]\s+(?P<completed>\d+)"
+)
+ELO_RE = re.compile(
+    r"^Elo difference: (?P<elo>[-0-9.inf]+) \+/- (?P<err>[-0-9.nan]+), "
+    r"LOS: (?P<los>[-0-9.nan]+) %, DrawRatio: (?P<draw>[-0-9.]+) %"
+)
+SPRT_RE = re.compile(r"^SPRT: llr (?P<llr>[-0-9.]+)")
+
+
+class ProgressFormatter:
+    def __init__(self, total_games: int) -> None:
+        self.total_games = total_games
+        self.score: re.Match[str] | None = None
+        self.elo: re.Match[str] | None = None
+
+    def format(self, line: str) -> str | None:
+        if line.startswith(NOISY_FASTCHESS_PREFIXES):
+            return None
+        if line.startswith("Started game ") or line.startswith("Finished game "):
+            return None
+
+        if match := SCORE_RE.match(line):
+            self.score = match
+            return None
+        if match := ELO_RE.match(line):
+            self.elo = match
+            return None
+        if match := SPRT_RE.match(line):
+            if not self.score or not self.elo:
+                return line
+            return (
+                f"[{self.score['completed']}/{self.total_games}] "
+                f"DrawRatio: {self.elo['draw']} %, "
+                f"Elo difference: {self.elo['elo']} +/- {self.elo['err']}, "
+                f"LOS: {self.elo['los']} %, "
+                f"LLR: {match['llr']}\n"
+            )
+
+        if line.startswith("Player:") or line.startswith("   \""):
+            return None
+        return line
+
+
+def run_and_tee(cmd: list[str], log: Path, total_games: int) -> int:
+    with log.open("w") as log_file:
+        progress = ProgressFormatter(total_games)
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            printable = progress.format(line)
+            if printable is not None:
+                print(printable, end="", flush=True)
+            log_file.write(line)
+            log_file.flush()
+        return proc.wait()
+
+
+def last_matching_line(log: Path, prefix: str) -> str:
+    result = ""
+    if not log.is_file():
+        return result
+    for line in log.read_text(errors="ignore").splitlines():
+        if line.startswith(prefix):
+            result = line
+    return result
+
+
+def main() -> int:
+    args = parse_args()
+
+    require_executable(args.candidate, "Candidate")
+    require_executable(args.reference, "Reference")
+    require_file(args.book, "Opening book")
+
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
+    log = logs_dir / f"{args.name}.log"
+    pgn = logs_dir / f"{args.name}.pgn"
+
+    start_msg = (
+        f"SPRT started: candidate={args.candidate} reference={args.reference} "
+        f"games={args.games} tc={args.tc} concurrency={args.concurrency}"
+    )
+    print(start_msg)
+    post_ntfy(args.ntfy_url, start_msg)
+
+    status = run_and_tee(build_command(args, pgn), log, args.games)
+
+    time.sleep(1)
+    score_line = last_matching_line(log, "Score of candidate vs reference")
+    elo_line = last_matching_line(log, "Elo difference")
+    sprt_line = last_matching_line(log, "SPRT: llr")
+    summary = "\n".join([
+        score_line or "no final score",
+        elo_line or "no Elo",
+        sprt_line or "no SPRT line",
+    ])
+    post_ntfy(args.ntfy_url, f"SPRT {args.name} ({status}):\n{summary}")
+
+    return status
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
