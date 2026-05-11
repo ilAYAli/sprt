@@ -159,6 +159,7 @@ def build_command(args: argparse.Namespace, log_pgn: Path) -> list[str]:
 
 NOISY_FASTCHESS_PREFIXES = (
     "Warning; Bestmove does not match beginning of last PV",
+    "Warning; No info line available to extract score from engine",
     "Warning; PV continues after fifty-move rule",
     "Info; info depth",
     "Position; fen",
