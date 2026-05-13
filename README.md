@@ -5,7 +5,7 @@ Small Python wrapper around `fastchess` for chess-engine SPRT runs.
 It keeps full raw fastchess logs on disk while printing concise progress:
 
 ```text
-[312/2000] DrawRatio: 64.42 %, Elo difference: -18.95 +/- 23.00, LOS: 5.26 %, LLR: -0.95
+[ 842/2000] Elo   5.8 +/-  14.7 | LLR  0.30/2.94 ( 10%) | LOS 78.0% | draw  61.0% | ETA 1h42m
 ```
 
 Example:

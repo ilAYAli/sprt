@@ -282,11 +282,30 @@ def format_llr(llr: str, ubound: str) -> str:
     return f"{llr_value:>5.2f}/{ubound_value:.2f} ({pct:>3.0f}%)"
 
 
+def format_eta(seconds: float) -> str:
+    seconds = max(0, int(seconds + 0.5))
+    hours, seconds = divmod(seconds, 3600)
+    minutes, seconds = divmod(seconds, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m"
+    if minutes:
+        return f"{minutes}m{seconds:02d}s"
+    return f"{seconds}s"
+
+
 class ProgressFormatter:
     def __init__(self, total_games: int) -> None:
         self.total_games = total_games
+        self.start_time = time.monotonic()
         self.score: Optional[re.Match[str]] = None
         self.elo: Optional[re.Match[str]] = None
+
+    def eta(self, completed: int) -> str:
+        if completed <= 0:
+            return "?"
+        remaining = max(0, self.total_games - completed)
+        elapsed = time.monotonic() - self.start_time
+        return format_eta(elapsed * remaining / completed)
 
     def format(self, line: str) -> Optional[str]:
         if line.startswith(NOISY_FASTCHESS_PREFIXES):
@@ -304,12 +323,14 @@ class ProgressFormatter:
             if not self.score or not self.elo:
                 return line
             width = len(str(self.total_games))
+            completed = int(self.score["completed"])
             return (
-                f"[{int(self.score['completed']):>{width}}/{self.total_games}] "
+                f"[{completed:>{width}}/{self.total_games}] "
                 f"Elo {format_field(self.elo['elo'], 1, 5)} +/- {format_field(self.elo['err'], 1, 5)} | "
                 f"LLR {format_llr(match['llr'], match['ubound'])} | "
                 f"LOS {format_field(self.elo['los'], 1, 4)}% | "
-                f"draw {format_field(self.elo['draw'], 1, 5)}%\n"
+                f"draw {format_field(self.elo['draw'], 1, 5)}% | "
+                f"ETA {self.eta(completed)}\n"
             )
 
         if line.startswith("Player:") or line.startswith("   \""):
