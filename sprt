@@ -33,6 +33,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reference-option", action="append", default=[], metavar="NAME=VAL")
     parser.add_argument("--order", default="random")
     parser.add_argument("--srand", default="")
+    eta_group = parser.add_mutually_exclusive_group()
+    eta_group.add_argument("--eta", dest="eta", action="store_true", default=None, help="always show progress ETA")
+    eta_group.add_argument("--no-eta", dest="eta", action="store_false", help="hide progress ETA")
     return parser.parse_args()
 
 
@@ -294,8 +297,9 @@ def format_eta(seconds: float) -> str:
 
 
 class ProgressFormatter:
-    def __init__(self, total_games: int) -> None:
+    def __init__(self, total_games: int, show_eta: Optional[bool]) -> None:
         self.total_games = total_games
+        self.show_eta = show_eta
         self.start_time = time.monotonic()
         self.score: Optional[re.Match[str]] = None
         self.elo: Optional[re.Match[str]] = None
@@ -324,23 +328,27 @@ class ProgressFormatter:
                 return line
             width = len(str(self.total_games))
             completed = int(self.score["completed"])
-            return (
+            progress_line = (
                 f"[{completed:>{width}}/{self.total_games}] "
                 f"Elo {format_field(self.elo['elo'], 1, 5)} +/- {format_field(self.elo['err'], 1, 5)} | "
                 f"LLR {format_llr(match['llr'], match['ubound'])} | "
                 f"LOS {format_field(self.elo['los'], 1, 4)}% | "
-                f"draw {format_field(self.elo['draw'], 1, 5)}% | "
-                f"ETA {self.eta(completed)}\n"
+                f"draw {format_field(self.elo['draw'], 1, 5)}%"
             )
+            progress_with_eta = f"{progress_line} | ETA {self.eta(completed)}"
+            terminal_width = shutil.get_terminal_size((120, 20)).columns
+            if self.show_eta is True or (self.show_eta is None and len(progress_with_eta) <= terminal_width):
+                return f"{progress_with_eta}\n"
+            return f"{progress_line}\n"
 
         if line.startswith("Player:") or line.startswith("   \""):
             return None
         return line
 
 
-def run_and_tee(cmd: list[str], log: Path, total_games: int) -> int:
+def run_and_tee(cmd: list[str], log: Path, total_games: int, show_eta: Optional[bool]) -> int:
     with log.open("w") as log_file:
-        progress = ProgressFormatter(total_games)
+        progress = ProgressFormatter(total_games, show_eta)
         proc = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -389,7 +397,7 @@ def main() -> int:
     print(start_msg)
     post_ntfy(args.ntfy_url, start_msg)
 
-    status = run_and_tee(build_command(args, pgn), log, args.games)
+    status = run_and_tee(build_command(args, pgn), log, args.games, args.eta)
 
     time.sleep(1)
     score_line = last_matching_line(log, "Score of candidate vs reference")
