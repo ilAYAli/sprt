@@ -16,6 +16,8 @@ Example:
   --reference ../assets/engines/reference \
   --book ../assets/books/UHO_Lichess_4852_v1.epd \
   --games 2000 \
+  --elo0 0 \
+  --elo1 10 \
   --concurrency 8 \
   --threads 4
 ```
@@ -24,5 +26,6 @@ Notes:
 
 - Requires `fastchess` in `PATH`, `~/local/bin/fastchess`, or `--fastchess`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
+- `--elo0`, `--elo1`, `--alpha`, and `--beta` configure the fastchess SPRT.
 - ETA is shown automatically when it fits. Use `--eta` or `--no-eta` to force it.
 - `--ntfy-url` sends start/end notifications. Auth is read from `NTFY_AUTH`, `LICHESS_NTFY_AUTH`, or `~/.ntfy`.
