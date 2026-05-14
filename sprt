@@ -35,6 +35,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--beta", type=float, default=0.05, help="SPRT false-negative rate")
     parser.add_argument("--candidate-option", action="append", default=[], metavar="NAME=VAL")
     parser.add_argument("--reference-option", action="append", default=[], metavar="NAME=VAL")
+    parser.add_argument("--restart", choices=["on", "off"], default="on",
+                        help="fastchess engine restart mode")
     parser.add_argument("--order", default="random")
     parser.add_argument("--srand", default="")
     eta_group = parser.add_mutually_exclusive_group()
@@ -189,12 +191,13 @@ def post_ntfy(url: str, message: str) -> None:
         pass
 
 
-def engine_args(name: str, command: str, threads: int, extra_options: list[str]) -> list[str]:
+def engine_args(name: str, command: str, threads: int, restart: str,
+                extra_options: list[str]) -> list[str]:
     args = [
         "-engine",
         f"name={name}",
         "proto=uci",
-        "restart=on",
+        f"restart={restart}",
         f"cmd={command}",
         f"option.Threads={threads}",
     ]
@@ -210,8 +213,10 @@ def build_command(args: argparse.Namespace, log_pgn: Path) -> list[str]:
         f"file={args.book}",
         f"format={args.book_format}",
         f"order={args.order}",
-        *engine_args("candidate", args.candidate, args.threads, args.candidate_option),
-        *engine_args("reference", args.reference, args.threads, args.reference_option),
+        *engine_args("candidate", args.candidate, args.threads,
+                     args.restart, args.candidate_option),
+        *engine_args("reference", args.reference, args.threads,
+                     args.restart, args.reference_option),
         "-concurrency",
         str(args.concurrency),
         "-ratinginterval",
