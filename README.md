@@ -38,12 +38,13 @@ sprt --reference ~/assets/engines/reference \
 
 Notes:
 
-- Requires `fastchess` in `PATH`, `~/local/bin/fastchess`, or `--fastchess`.
 - Defaults to 2000 games, host-auto concurrency/Threads, ETA enabled,
   `https://ntfy.wahlman.no/sprt`, and the candidate/reference/WOMP book under
   `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
 - `--candidate-opts` and `--reference-opts` pass process args to engines.
+- Process args do not change engine paths; use `--candidate` or `--reference`
+  to override a side.
 - `--candidate-uci` and `--reference-uci` pass UCI options to engines.
 - Prints each engine's startup id or UCI `id name` in the header when available.
 - Run `./sprt --help` for the full option list and defaults.

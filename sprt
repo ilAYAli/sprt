@@ -117,13 +117,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--candidate", "-c", default=DEFAULT_CANDIDATE,
                         help="candidate UCI engine executable")
     parser.add_argument("--candidate-opts", action="append", default=[], metavar="ARGS",
-                        help=("extra process args for the candidate engine; with no engine path, "
-                              "reference uses candidate executable"))
+                        help="extra process args for the candidate engine; repeatable")
     parser.add_argument("--reference", "-r", default=DEFAULT_REFERENCE,
                         help="reference UCI engine executable")
     parser.add_argument("--reference-opts", action="append", default=[], metavar="ARGS",
-                        help=("extra process args for the reference engine; with no engine path, "
-                              "reference uses candidate executable"))
+                        help="extra process args for the reference engine; repeatable")
     parser.add_argument("--book", default=DEFAULT_BOOK,
                         help="opening book file")
     parser.add_argument("--games", type=int, default=DEFAULT_GAMES,
@@ -162,54 +160,23 @@ def parse_args() -> argparse.Namespace:
     eta_group.add_argument("--eta", dest="eta", action="store_true", default=True, help="always show progress ETA")
     eta_group.add_argument("--no-eta", dest="eta", action="store_false", default=argparse.SUPPRESS,
                            help="hide progress ETA")
-    argv, candidate_opts, reference_opts, candidate_explicit, reference_explicit = extract_process_opts(
-        sys.argv[1:], parser)
+    argv, candidate_opts, reference_opts = extract_process_opts(sys.argv[1:], parser)
     args = parser.parse_args(argv)
     args.candidate_opts = parse_process_opts(candidate_opts, "--candidate-opts")
     args.reference_opts = parse_process_opts(reference_opts, "--reference-opts")
-    args.candidate_explicit = candidate_explicit
-    args.reference_explicit = reference_explicit
     return args
 
 
 def extract_process_opts(
     argv: list[str],
     parser: argparse.ArgumentParser,
-) -> tuple[list[str], list[str], list[str], bool, bool]:
+) -> tuple[list[str], list[str], list[str]]:
     filtered = []
     candidate_opts = []
     reference_opts = []
-    candidate_explicit = False
-    reference_explicit = False
     i = 0
     while i < len(argv):
         arg = argv[i]
-        if arg in ("--candidate", "-c"):
-            candidate_explicit = True
-            filtered.append(arg)
-            if i + 1 < len(argv):
-                i += 1
-                filtered.append(argv[i])
-            i += 1
-            continue
-        if arg.startswith("--candidate="):
-            candidate_explicit = True
-            filtered.append(arg)
-            i += 1
-            continue
-        if arg in ("--reference", "-r"):
-            reference_explicit = True
-            filtered.append(arg)
-            if i + 1 < len(argv):
-                i += 1
-                filtered.append(argv[i])
-            i += 1
-            continue
-        if arg.startswith("--reference="):
-            reference_explicit = True
-            filtered.append(arg)
-            i += 1
-            continue
         if arg == "--candidate-opts":
             if i + 1 >= len(argv):
                 parser.error("--candidate-opts expected one argument")
@@ -232,7 +199,7 @@ def extract_process_opts(
             continue
         filtered.append(arg)
         i += 1
-    return filtered, candidate_opts, reference_opts, candidate_explicit, reference_explicit
+    return filtered, candidate_opts, reference_opts
 
 
 def parse_process_opts(values: list[str], label: str) -> list[str]:
@@ -254,12 +221,6 @@ def expand_user_paths(args: argparse.Namespace) -> None:
     args.log_dir = os.path.expanduser(args.log_dir)
     args.candidate_opts = [os.path.expanduser(opt) for opt in args.candidate_opts]
     args.reference_opts = [os.path.expanduser(opt) for opt in args.reference_opts]
-    if (
-        (args.candidate_opts or args.reference_opts)
-        and not args.candidate_explicit
-        and not args.reference_explicit
-    ):
-        args.reference = args.candidate
 
 
 def resolve_auto_defaults(args: argparse.Namespace) -> str:
