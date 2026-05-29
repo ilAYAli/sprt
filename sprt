@@ -2,8 +2,10 @@
 import argparse
 import base64
 import os
+import platform
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import time
@@ -20,8 +22,6 @@ DEFAULT_BOOK = (
     "WOMP_V1_+150_+159/WOMP_V1_6mvs_big_+140_+169.epd"
 )
 DEFAULT_GAMES = 2000
-DEFAULT_CONCURRENCY = 8
-DEFAULT_THREADS = 1
 DEFAULT_NTFY_URL = "https://ntfy.wahlman.no/sprt"
 
 
@@ -37,6 +37,8 @@ class SprtHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
             return f"{help_text} (default: enabled)"
         if action.default is False:
             return f"{help_text} (default: disabled)"
+        if action.default is None:
+            return help_text
         if action.default == "":
             return f"{help_text} (default: empty)"
         if action.default == []:
@@ -44,7 +46,68 @@ class SprtHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
         return super()._get_help_string(action)
 
 
+def command_stdout(cmd: list[str]) -> str:
+    try:
+        proc = subprocess.run(cmd, text=True, capture_output=True, check=False, timeout=2)
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return proc.stdout.strip()
+
+
+def command_int(cmd: list[str]) -> Optional[int]:
+    text = command_stdout(cmd)
+    try:
+        return int(text.splitlines()[0])
+    except (IndexError, ValueError):
+        return None
+
+
+def detect_linux_physical_cores() -> Optional[int]:
+    text = command_stdout(["lscpu", "-p=Core,Socket"])
+    cores: set[tuple[str, str]] = set()
+    for line in text.splitlines():
+        if not line or line.startswith("#"):
+            continue
+        parts = line.split(",")
+        if len(parts) >= 2:
+            cores.add((parts[0], parts[1]))
+    return len(cores) if cores else None
+
+
+def detect_apple_pcores() -> Optional[int]:
+    if platform.system() != "Darwin" or platform.machine() != "arm64":
+        return None
+    return command_int(["sysctl", "-n", "hw.perflevel0.physicalcpu"])
+
+
+def auto_sprt_defaults() -> tuple[int, int, str]:
+    host = socket.gethostname().split(".", 1)[0].lower()
+
+    host_defaults = {
+        "pwahlman-m-7jfq": (3, 3, "Apple Silicon 10P+4E host"),
+        "pwa-5090": (6, 4, "pwa-5090 24-core host"),
+    }
+    if host in host_defaults:
+        return host_defaults[host]
+
+    if pcores := detect_apple_pcores():
+        threads = 3 if pcores >= 9 else max(1, min(2, pcores // 2))
+        return max(1, pcores // threads), threads, f"Apple Silicon {pcores}P auto"
+
+    cores = detect_linux_physical_cores() or os.cpu_count() or 1
+    if cores >= 16:
+        threads = 4
+    elif cores >= 8:
+        threads = 2
+    else:
+        threads = 1
+    return max(1, cores // threads), threads, f"{cores}-core auto"
+
+
 def parse_args() -> argparse.Namespace:
+    auto_concurrency, auto_threads, auto_reason = auto_sprt_defaults()
     parser = argparse.ArgumentParser(
         description="Run an SPRT with fastchess",
         formatter_class=SprtHelpFormatter,
@@ -57,8 +120,10 @@ def parse_args() -> argparse.Namespace:
                         help="opening book file")
     parser.add_argument("--games", type=int, default=DEFAULT_GAMES,
                         help="target number of games")
-    parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY, help="parallel games")
-    parser.add_argument("--threads", "-t", type=int, default=DEFAULT_THREADS, help="engine Threads option")
+    parser.add_argument("--concurrency", type=int, default=None,
+                        help=f"parallel games; default: auto ({auto_concurrency}, {auto_reason})")
+    parser.add_argument("--threads", "-t", type=int, default=None,
+                        help=f"engine Threads option; default: auto ({auto_threads}, {auto_reason})")
     parser.add_argument("--tc", default="10+0.1",
                         help="fastchess time control passed to -each")
     parser.add_argument("--book-format", default="epd",
@@ -98,6 +163,18 @@ def expand_user_paths(args: argparse.Namespace) -> None:
     args.book = os.path.expanduser(args.book)
     args.fastchess = os.path.expanduser(args.fastchess)
     args.log_dir = os.path.expanduser(args.log_dir)
+
+
+def resolve_auto_defaults(args: argparse.Namespace) -> str:
+    concurrency, threads, reason = auto_sprt_defaults()
+    changed = []
+    if args.concurrency is None:
+        args.concurrency = concurrency
+        changed.append("concurrency")
+    if args.threads is None:
+        args.threads = threads
+        changed.append("threads")
+    return reason if changed else "explicit"
 
 
 def find_fastchess(path: str) -> list[str]:
@@ -371,6 +448,7 @@ def last_matching_line(log: Path, prefix: str) -> str:
 def main() -> int:
     args = parse_args()
     expand_user_paths(args)
+    defaults_reason = resolve_auto_defaults(args)
 
     require_executable(args.candidate, "Candidate")
     require_executable(args.reference, "Reference")
@@ -384,7 +462,8 @@ def main() -> int:
     start_msg = (
         f"SPRT started: candidate={args.candidate} reference={args.reference} "
         f"games={args.games} tc={args.tc} concurrency={args.concurrency} "
-        f"threads={args.threads} elo0={args.elo0:g} elo1={args.elo1:g}"
+        f"threads={args.threads} elo0={args.elo0:g} elo1={args.elo1:g} "
+        f"defaults={defaults_reason}"
     )
     print(start_msg)
     post_ntfy(args.ntfy_url, start_msg)

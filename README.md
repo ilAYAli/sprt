@@ -17,7 +17,7 @@ Example:
 Notes:
 
 - Requires `fastchess` in `PATH`, `~/local/bin/fastchess`, or `--fastchess`.
-- Defaults to 2000 games, concurrency 8, Threads=1, ETA enabled,
+- Defaults to 2000 games, host-auto concurrency/Threads, ETA enabled,
   `https://ntfy.wahlman.no/sprt`, and the candidate/reference/WOMP book under
   `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
