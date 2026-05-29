@@ -11,21 +11,17 @@ It keeps full raw fastchess logs on disk while printing concise progress:
 Example:
 
 ```sh
-./sprt \
-  --candidate ./build/enyo \
-  --reference ../assets/engines/reference \
-  --book ../assets/books/UHO_Lichess_4852_v1.epd \
-  --games 2000 \
-  --elo0 0 \
-  --elo1 10 \
-  --concurrency 8 \
-  --threads 4
+./sprt
 ```
 
 Notes:
 
 - Requires `fastchess` in `PATH`, `~/local/bin/fastchess`, or `--fastchess`.
+- Defaults to 2000 games, concurrency 8, Threads=1, ETA enabled,
+  `https://ntfy.wahlman.no/sprt`, and the candidate/reference/WOMP book under
+  `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
+- Run `./sprt --help` for the full option list and defaults.
 - `--elo0`, `--elo1`, `--alpha`, and `--beta` configure the fastchess SPRT.
-- ETA is shown automatically when it fits. Use `--eta` or `--no-eta` to force it.
+- Use `--no-eta` to hide progress ETA.
 - `--ntfy-url` sends start/end notifications. Auth is read from `NTFY_AUTH`, `LICHESS_NTFY_AUTH`, or `~/.ntfy`.
