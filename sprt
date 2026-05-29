@@ -135,7 +135,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--book-format", default="epd",
                         help="fastchess opening book format")
     parser.add_argument("--fastchess", default="",
-                        help="fastchess executable path; empty searches PATH then ~/local/bin")
+                        help="fastchess executable path; empty searches PATH")
     parser.add_argument("--log-dir", default="logs",
                         help="directory for raw fastchess logs and PGNs")
     parser.add_argument("--ntfy-url", default=DEFAULT_NTFY_URL,
@@ -259,11 +259,7 @@ def find_fastchess(path: str) -> list[str]:
     if found:
         return [found]
 
-    home_fastchess = Path.home() / "local" / "bin" / "fastchess"
-    if home_fastchess.is_file() and os.access(home_fastchess, os.X_OK):
-        return [str(home_fastchess)]
-
-    print("fastchess not found", file=sys.stderr)
+    print("fastchess not found in PATH; pass --fastchess to specify it", file=sys.stderr)
     sys.exit(1)
 
 
