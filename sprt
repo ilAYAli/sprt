@@ -115,12 +115,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--candidate", "-c", required=True,
                         help="candidate UCI engine executable")
-    parser.add_argument("--candidate-opts", action="append", default=[], metavar="ARGS",
-                        help="extra process args for the candidate engine; repeatable")
     parser.add_argument("--reference", "-r", default=DEFAULT_REFERENCE,
                         help="reference UCI engine executable")
+    parser.add_argument("--candidate-opts", action="append", default=[], metavar="ARGS",
+                        help="extra process args for the candidate engine; repeatable")
     parser.add_argument("--reference-opts", action="append", default=[], metavar="ARGS",
                         help="extra process args for the reference engine; repeatable")
+    parser.add_argument("--candidate-uci", action="append", default=[], metavar="NAME=VAL",
+                        help="extra UCI option for the candidate engine; repeatable")
+    parser.add_argument("--reference-uci", action="append", default=[], metavar="NAME=VAL",
+                        help="extra UCI option for the reference engine; repeatable")
     parser.add_argument("--book", default=DEFAULT_BOOK,
                         help="opening book file")
     parser.add_argument("--games", type=int, default=DEFAULT_GAMES,
@@ -145,10 +149,6 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--elo1", type=float, default=10.0, help="SPRT test hypothesis Elo")
     parser.add_argument("--alpha", type=float, default=0.05, help="SPRT false-positive rate")
     parser.add_argument("--beta", type=float, default=0.05, help="SPRT false-negative rate")
-    parser.add_argument("--candidate-uci", action="append", default=[], metavar="NAME=VAL",
-                        help="extra UCI option for the candidate engine; repeatable")
-    parser.add_argument("--reference-uci", action="append", default=[], metavar="NAME=VAL",
-                        help="extra UCI option for the reference engine; repeatable")
     parser.add_argument("--restart", choices=["on", "off"], default="on",
                         help="fastchess engine restart mode")
     parser.add_argument("--order", default="random",
