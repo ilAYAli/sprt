@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Optional
 
 
-DEFAULT_CANDIDATE = "~/assets/engines/candidate"
 DEFAULT_REFERENCE = "~/assets/engines/reference"
 DEFAULT_BOOK = (
     "~/assets/books/AntiDraw_V2.1/WOMP_Openings_V1/"
@@ -114,7 +113,7 @@ def parse_args() -> argparse.Namespace:
         description="Run an SPRT with fastchess",
         formatter_class=SprtHelpFormatter,
     )
-    parser.add_argument("--candidate", "-c", default=DEFAULT_CANDIDATE,
+    parser.add_argument("--candidate", "-c", required=True,
                         help="candidate UCI engine executable")
     parser.add_argument("--candidate-opts", action="append", default=[], metavar="ARGS",
                         help="extra process args for the candidate engine; repeatable")

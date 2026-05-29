@@ -29,9 +29,9 @@ sprt \
 
 Notes:
 
+- `--candidate` is required.
 - Defaults to 2000 games, host-auto concurrency/Threads, ETA enabled,
-  `https://ntfy.wahlman.no/sprt`, and the candidate/reference/WOMP book under
-  `~/assets`.
+  `https://ntfy.wahlman.no/sprt`, and the reference/WOMP book under `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
 - `--candidate-opts` and `--reference-opts` pass process args to engines.
 - Process args do not change engine paths; use `--candidate` or `--reference`
