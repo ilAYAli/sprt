@@ -86,7 +86,7 @@ def auto_sprt_defaults() -> tuple[int, int, str]:
     host = socket.gethostname().split(".", 1)[0].lower()
 
     host_defaults = {
-        "pwahlman-m-7jfq": (3, 3, "Apple Silicon 10P+4E host"),
+        "pwahlman-m-7jfq": (8, 1, "Apple Silicon 10P+4E host"),
         "pwa-5090": (6, 4, "pwa-5090 24-core host"),
     }
     if host in host_defaults:
