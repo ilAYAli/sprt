@@ -23,6 +23,7 @@ DEFAULT_BOOK = (
 )
 DEFAULT_GAMES = 2000
 DEFAULT_NTFY_URL = "https://ntfy.wahlman.no/sprt"
+ENGINE_ID_TIMEOUT = 2.0
 
 
 class SprtHelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
@@ -167,14 +168,27 @@ def expand_user_paths(args: argparse.Namespace) -> None:
 
 def resolve_auto_defaults(args: argparse.Namespace) -> str:
     concurrency, threads, reason = auto_sprt_defaults()
+    source = auto_default_label(reason)
     changed = []
+    args.concurrency_source = ""
+    args.threads_source = ""
     if args.concurrency is None:
         args.concurrency = concurrency
+        args.concurrency_source = source
         changed.append("concurrency")
     if args.threads is None:
         args.threads = threads
+        args.threads_source = source
         changed.append("threads")
     return reason if changed else "explicit"
+
+
+def auto_default_label(reason: str) -> str:
+    if reason.startswith("Apple Silicon"):
+        return "macOS default"
+    if reason.startswith("pwa-5090"):
+        return "pwa-5090 default"
+    return "auto default"
 
 
 def find_fastchess(path: str) -> list[str]:
@@ -206,6 +220,64 @@ def require_file(path: str, label: str) -> None:
     if not os.path.isfile(path):
         print(f"{label} not found: {path}", file=sys.stderr)
         sys.exit(1)
+
+
+def engine_id(command: str) -> str:
+    try:
+        proc = subprocess.Popen(
+            [command],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            errors="replace",
+        )
+    except OSError:
+        return ""
+
+    try:
+        stdout, _ = proc.communicate("uci\nquit\n", timeout=ENGINE_ID_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stdout, _ = proc.communicate()
+
+    lines = [line.strip() for line in stdout.splitlines() if line.strip()]
+    for line in lines:
+        if line.startswith("id name "):
+            return line.removeprefix("id name ").strip()
+    for line in lines:
+        if line.startswith("id ") and not line.startswith("id author "):
+            return line.removeprefix("id ").strip()
+    return ""
+
+
+def add_engine_header(lines: list[str], role: str, command: str) -> None:
+    name = engine_id(command)
+    if name:
+        lines.append(f"{role}: {command} ({name})")
+        return
+    lines.append(f"{role}: {command}")
+
+
+def run_field(name: str, value: object, source: str = "") -> str:
+    field = f"{name}: {value}"
+    if source:
+        return f"{field} ({source})"
+    return field
+
+
+def startup_message(args: argparse.Namespace) -> str:
+    lines: list[str] = []
+    add_engine_header(lines, "candidate", args.candidate)
+    add_engine_header(lines, "reference", args.reference)
+    lines.extend([
+        run_field("games", args.games),
+        run_field("tc", args.tc),
+        run_field("concurrency", args.concurrency, getattr(args, "concurrency_source", "")),
+        run_field("threads", args.threads, getattr(args, "threads_source", "")),
+        run_field("elo", f"{args.elo0:g}/{args.elo1:g}"),
+    ])
+    return "\n".join(lines)
 
 
 def load_ntfy_auth() -> str:
@@ -448,7 +520,7 @@ def last_matching_line(log: Path, prefix: str) -> str:
 def main() -> int:
     args = parse_args()
     expand_user_paths(args)
-    defaults_reason = resolve_auto_defaults(args)
+    resolve_auto_defaults(args)
 
     require_executable(args.candidate, "Candidate")
     require_executable(args.reference, "Reference")
@@ -459,13 +531,8 @@ def main() -> int:
     log = logs_dir / f"{args.name}.log"
     pgn = logs_dir / f"{args.name}.pgn"
 
-    start_msg = (
-        f"SPRT started: candidate={args.candidate} reference={args.reference} "
-        f"games={args.games} tc={args.tc} concurrency={args.concurrency} "
-        f"threads={args.threads} elo0={args.elo0:g} elo1={args.elo1:g} "
-        f"defaults={defaults_reason}"
-    )
-    print(start_msg)
+    start_msg = startup_message(args)
+    print(f"{start_msg}\n")
     post_ntfy(args.ntfy_url, start_msg)
 
     status = run_and_tee(build_command(args, pgn), log, args.games, args.eta)

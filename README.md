@@ -21,6 +21,7 @@ Notes:
   `https://ntfy.wahlman.no/sprt`, and the candidate/reference/WOMP book under
   `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
+- Prints each engine's startup id or UCI `id name` in the header when available.
 - Run `./sprt --help` for the full option list and defaults.
 - `--elo0`, `--elo1`, `--alpha`, and `--beta` configure the fastchess SPRT.
 - Use `--no-eta` to hide progress ETA.
