@@ -8,18 +8,32 @@ It keeps full raw fastchess logs on disk while printing concise progress:
 [ 842/2000] Elo   5.8 +/-  14.7 | LLR  0.30/2.94 ( 10%) | LOS 78.0% | draw  61.0%
 ```
 
-Example:
+## Common Commands
+
+Run the default local SPRT setup:
 
 ```sh
-./sprt
+sprt
 ```
 
-Compare the same engine with different process args:
+Test the current build against the default reference:
 
 ```sh
-./sprt \
-  --candidate ./build/enyo \
-  --candidate-opts "-c ~/.config/settings_nnue2.json"
+sprt --candidate ./build/enyo
+```
+
+Test the current build with alternate process args:
+
+```sh
+sprt --candidate-opts "-c ~/.config/settings_nnue2.json" \
+  --candidate ./build/enyo
+```
+
+Spell out the stable reference when you want the baseline visible:
+
+```sh
+sprt --reference ~/assets/engines/reference \
+  --candidate ./build/enyo
 ```
 
 Notes:
