@@ -14,6 +14,14 @@ Example:
 ./sprt
 ```
 
+Compare the same engine with different process args:
+
+```sh
+./sprt \
+  --candidate ./build/enyo \
+  --candidate-opts "-c ~/.config/settings_nnue2.json"
+```
+
 Notes:
 
 - Requires `fastchess` in `PATH`, `~/local/bin/fastchess`, or `--fastchess`.
@@ -21,6 +29,8 @@ Notes:
   `https://ntfy.wahlman.no/sprt`, and the candidate/reference/WOMP book under
   `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
+- `--candidate-opts` and `--reference-opts` pass process args to engines.
+- `--candidate-uci` and `--reference-uci` pass UCI options to engines.
 - Prints each engine's startup id or UCI `id name` in the header when available.
 - Run `./sprt --help` for the full option list and defaults.
 - `--elo0`, `--elo1`, `--alpha`, and `--beta` configure the fastchess SPRT.

@@ -4,6 +4,7 @@ import base64
 import os
 import platform
 import re
+import shlex
 import shutil
 import socket
 import subprocess
@@ -115,8 +116,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--candidate", "-c", default=DEFAULT_CANDIDATE,
                         help="candidate UCI engine executable")
+    parser.add_argument("--candidate-opts", action="append", default=[], metavar="ARGS",
+                        help="extra process args for the candidate engine; implies same-engine comparison when --reference is omitted")
     parser.add_argument("--reference", "-r", default=DEFAULT_REFERENCE,
                         help="reference UCI engine executable")
+    parser.add_argument("--reference-opts", action="append", default=[], metavar="ARGS",
+                        help="extra process args for the reference engine; implies --reference <candidate> when --reference is omitted")
     parser.add_argument("--book", default=DEFAULT_BOOK,
                         help="opening book file")
     parser.add_argument("--games", type=int, default=DEFAULT_GAMES,
@@ -141,9 +146,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--elo1", type=float, default=10.0, help="SPRT test hypothesis Elo")
     parser.add_argument("--alpha", type=float, default=0.05, help="SPRT false-positive rate")
     parser.add_argument("--beta", type=float, default=0.05, help="SPRT false-negative rate")
-    parser.add_argument("--candidate-option", action="append", default=[], metavar="NAME=VAL",
+    parser.add_argument("--candidate-uci", action="append", default=[], metavar="NAME=VAL",
                         help="extra UCI option for the candidate engine; repeatable")
-    parser.add_argument("--reference-option", action="append", default=[], metavar="NAME=VAL",
+    parser.add_argument("--reference-uci", action="append", default=[], metavar="NAME=VAL",
                         help="extra UCI option for the reference engine; repeatable")
     parser.add_argument("--restart", choices=["on", "off"], default="on",
                         help="fastchess engine restart mode")
@@ -155,7 +160,69 @@ def parse_args() -> argparse.Namespace:
     eta_group.add_argument("--eta", dest="eta", action="store_true", default=True, help="always show progress ETA")
     eta_group.add_argument("--no-eta", dest="eta", action="store_false", default=argparse.SUPPRESS,
                            help="hide progress ETA")
-    return parser.parse_args()
+    argv, candidate_opts, reference_opts, reference_explicit = extract_process_opts(sys.argv[1:], parser)
+    args = parser.parse_args(argv)
+    args.candidate_opts = parse_process_opts(candidate_opts, "--candidate-opts")
+    args.reference_opts = parse_process_opts(reference_opts, "--reference-opts")
+    args.reference_explicit = reference_explicit
+    return args
+
+
+def extract_process_opts(argv: list[str], parser: argparse.ArgumentParser) -> tuple[list[str], list[str], list[str], bool]:
+    filtered = []
+    candidate_opts = []
+    reference_opts = []
+    reference_explicit = False
+    i = 0
+    while i < len(argv):
+        arg = argv[i]
+        if arg in ("--reference", "-r"):
+            reference_explicit = True
+            filtered.append(arg)
+            if i + 1 < len(argv):
+                i += 1
+                filtered.append(argv[i])
+            i += 1
+            continue
+        if arg.startswith("--reference="):
+            reference_explicit = True
+            filtered.append(arg)
+            i += 1
+            continue
+        if arg == "--candidate-opts":
+            if i + 1 >= len(argv):
+                parser.error("--candidate-opts expected one argument")
+            candidate_opts.append(argv[i + 1])
+            i += 2
+            continue
+        if arg.startswith("--candidate-opts="):
+            candidate_opts.append(arg.split("=", 1)[1])
+            i += 1
+            continue
+        if arg == "--reference-opts":
+            if i + 1 >= len(argv):
+                parser.error("--reference-opts expected one argument")
+            reference_opts.append(argv[i + 1])
+            i += 2
+            continue
+        if arg.startswith("--reference-opts="):
+            reference_opts.append(arg.split("=", 1)[1])
+            i += 1
+            continue
+        filtered.append(arg)
+        i += 1
+    return filtered, candidate_opts, reference_opts, reference_explicit
+
+
+def parse_process_opts(values: list[str], label: str) -> list[str]:
+    parsed = []
+    for value in values:
+        try:
+            parsed.extend(shlex.split(value))
+        except ValueError as ex:
+            print(f"{label} is invalid: {ex}", file=sys.stderr)
+            sys.exit(1)
+    return parsed
 
 
 def expand_user_paths(args: argparse.Namespace) -> None:
@@ -164,6 +231,10 @@ def expand_user_paths(args: argparse.Namespace) -> None:
     args.book = os.path.expanduser(args.book)
     args.fastchess = os.path.expanduser(args.fastchess)
     args.log_dir = os.path.expanduser(args.log_dir)
+    args.candidate_opts = [os.path.expanduser(opt) for opt in args.candidate_opts]
+    args.reference_opts = [os.path.expanduser(opt) for opt in args.reference_opts]
+    if (args.candidate_opts or args.reference_opts) and not args.reference_explicit:
+        args.reference = args.candidate
 
 
 def resolve_auto_defaults(args: argparse.Namespace) -> str:
@@ -222,10 +293,16 @@ def require_file(path: str, label: str) -> None:
         sys.exit(1)
 
 
-def engine_id(command: str) -> str:
+def engine_display(command: str, process_opts: list[str]) -> str:
+    if not process_opts:
+        return command
+    return f"{command} {shlex.join(process_opts)}"
+
+
+def engine_id(command: str, process_opts: list[str]) -> str:
     try:
         proc = subprocess.Popen(
-            [command],
+            [command, *process_opts],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -251,12 +328,13 @@ def engine_id(command: str) -> str:
     return ""
 
 
-def add_engine_header(lines: list[str], role: str, command: str) -> None:
-    name = engine_id(command)
+def add_engine_header(lines: list[str], role: str, command: str, process_opts: list[str]) -> None:
+    display = engine_display(command, process_opts)
+    name = engine_id(command, process_opts)
     if name:
-        lines.append(f"{role}: {command} ({name})")
+        lines.append(f"{role}: {display} ({name})")
         return
-    lines.append(f"{role}: {command}")
+    lines.append(f"{role}: {display}")
 
 
 def run_field(name: str, value: object, source: str = "") -> str:
@@ -268,8 +346,8 @@ def run_field(name: str, value: object, source: str = "") -> str:
 
 def startup_message(args: argparse.Namespace) -> str:
     lines: list[str] = []
-    add_engine_header(lines, "candidate", args.candidate)
-    add_engine_header(lines, "reference", args.reference)
+    add_engine_header(lines, "candidate", args.candidate, args.candidate_opts)
+    add_engine_header(lines, "reference", args.reference, args.reference_opts)
     lines.extend([
         run_field("games", args.games),
         run_field("tc", args.tc),
@@ -323,7 +401,7 @@ def post_ntfy(url: str, message: str) -> None:
         pass
 
 
-def engine_args(name: str, command: str, threads: int, restart: str,
+def engine_args(name: str, command: str, process_opts: list[str], threads: int, restart: str,
                 extra_options: list[str]) -> list[str]:
     args = [
         "-engine",
@@ -333,6 +411,8 @@ def engine_args(name: str, command: str, threads: int, restart: str,
         f"cmd={command}",
         f"option.Threads={threads}",
     ]
+    if process_opts:
+        args.append(f"args={shlex.join(process_opts)}")
     args.extend(f"option.{opt}" for opt in extra_options)
     return args
 
@@ -345,10 +425,10 @@ def build_command(args: argparse.Namespace, log_pgn: Path) -> list[str]:
         f"file={args.book}",
         f"format={args.book_format}",
         f"order={args.order}",
-        *engine_args("candidate", args.candidate, args.threads,
-                     args.restart, args.candidate_option),
-        *engine_args("reference", args.reference, args.threads,
-                     args.restart, args.reference_option),
+        *engine_args("candidate", args.candidate, args.candidate_opts, args.threads,
+                     args.restart, args.candidate_uci),
+        *engine_args("reference", args.reference, args.reference_opts, args.threads,
+                     args.restart, args.reference_uci),
         "-concurrency",
         str(args.concurrency),
         "-ratinginterval",
