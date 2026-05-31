@@ -18,6 +18,16 @@ sprt \
   --candidate ./build/enyo
 ```
 
+Compare UCI options only when the engine configuration is part of the test:
+
+```sh
+sprt \
+  --reference ~/assets/engines/reference \
+  --candidate ./build/enyo \
+  --candidate-uci "nnue_file=net-a.nn" \
+  --reference-uci "nnue_file=net-b.nn"
+```
+
 Test the current build with candidate process args:
 
 ```sh
