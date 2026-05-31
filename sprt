@@ -6,7 +6,6 @@ import platform
 import re
 import shlex
 import shutil
-import socket
 import subprocess
 import sys
 import time
@@ -84,27 +83,12 @@ def detect_apple_pcores() -> Optional[int]:
 
 
 def auto_sprt_defaults() -> tuple[int, int, str]:
-    host = socket.gethostname().split(".", 1)[0].lower()
-
-    host_defaults = {
-        "pwahlman-m-7jfq": (8, 1, "Apple Silicon 10P+4E host"),
-        "pwa-5090": (6, 4, "pwa-5090 24-core host"),
-    }
-    if host in host_defaults:
-        return host_defaults[host]
-
     if pcores := detect_apple_pcores():
-        threads = 3 if pcores >= 9 else max(1, min(2, pcores // 2))
-        return max(1, pcores // threads), threads, f"Apple Silicon {pcores}P auto"
+        concurrency = pcores - 2 if pcores >= 8 else pcores
+        return max(1, concurrency), 1, f"Apple Silicon {pcores}P auto"
 
     cores = detect_linux_physical_cores() or os.cpu_count() or 1
-    if cores >= 16:
-        threads = 4
-    elif cores >= 8:
-        threads = 2
-    else:
-        threads = 1
-    return max(1, cores // threads), threads, f"{cores}-core auto"
+    return max(1, cores), 1, f"{cores}-core auto"
 
 
 def parse_args() -> argparse.Namespace:
@@ -242,8 +226,6 @@ def resolve_auto_defaults(args: argparse.Namespace) -> str:
 def auto_default_label(reason: str) -> str:
     if reason.startswith("Apple Silicon"):
         return "macOS default"
-    if reason.startswith("pwa-5090"):
-        return "pwa-5090 default"
     return "auto default"
 
 
