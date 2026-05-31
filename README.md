@@ -22,10 +22,11 @@ Compare UCI options only when the engine configuration is part of the test:
 
 ```sh
 sprt \
-  --reference ~/assets/engines/reference \
-  --candidate ./build/enyo \
-  --candidate-uci "nnue_file=net-a.nn" \
-  --reference-uci "nnue_file=net-b.nn"
+    --reference ~/assets/engines/reference \
+    --candidate ~/assets/engines/reference \
+    --reference-uci "nnue_file=$HOME/code/cpp/chess/enyo/net/default.nn" \
+    --candidate-uci "nnue_file=$HOME/code/cpp/chess/nnue/runs/d16-rc2-secondhalf-fresh-huber-sign-lr2e7-e10-20260531/train/model.nn"
+
 ```
 
 Test the current build with candidate process args:
