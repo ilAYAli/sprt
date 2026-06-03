@@ -126,8 +126,6 @@ def parse_args() -> argparse.Namespace:
                         help="directory for raw fastchess logs and PGNs")
     parser.add_argument("--ntfy-url", default=os.environ.get("SPRT_NTFY_URL", ""),
                         help="ntfy topic URL for start/end notifications")
-    parser.add_argument("--ai-stdout-url", default=os.environ.get("SPRT_AI_STDOUT_URL", ""),
-                        help="ntfy topic URL for final user-visible summaries")
     parser.add_argument("--no-ntfy", action="store_true",
                         help="suppress all ntfy notifications; use only for distributed shards")
     parser.add_argument("--name", "-n", default="sprt",
@@ -152,7 +150,6 @@ def parse_args() -> argparse.Namespace:
     args.reference_opts = parse_process_opts(reference_opts, "--reference-opts")
     if args.no_ntfy:
         args.ntfy_url = ""
-        args.ai_stdout_url = ""
     return args
 
 
@@ -602,7 +599,6 @@ def main() -> int:
     ])
     final_message = f"SPRT {args.name} ({status}):\n{summary}"
     post_ntfy(args.ntfy_url, final_message, title="SPRT finished")
-    post_ntfy(args.ai_stdout_url, final_message, title="SPRT finished")
 
     return status
 

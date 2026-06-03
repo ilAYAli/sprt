@@ -54,15 +54,14 @@ Notes:
 - Use `--no-eta` to hide progress ETA.
 - `--ntfy-url` sends start/end notifications; default is `SPRT_NTFY_URL` or
   empty.
-- `--ai-stdout-url` sends final summaries; default is `SPRT_AI_STDOUT_URL` or
-  empty.
 - Use `--no-ntfy` only for distributed shard runs where an aggregate runner
   sends the final notification.
+- `AI_stdout` summaries are not sent by this wrapper; they belong to the agent
+  or the higher-level runner interpreting the result.
 - Auth is read from `NTFY_AUTH`, `LICHESS_NTFY_AUTH`, or `~/.ntfy`.
 
 Example local notification setup:
 
 ```sh
 export SPRT_NTFY_URL=https://ntfy.example/sprt
-export SPRT_AI_STDOUT_URL=https://ntfy.example/AI_stdout
 ```
