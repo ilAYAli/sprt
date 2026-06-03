@@ -21,7 +21,6 @@ DEFAULT_BOOK = (
     "WOMP_V1_+150_+159/WOMP_V1_6mvs_big_+140_+169.epd"
 )
 DEFAULT_GAMES = 2000
-DEFAULT_NTFY_URL = "https://ntfy.wahlman.no/sprt"
 ENGINE_ID_TIMEOUT = 2.0
 
 
@@ -125,8 +124,12 @@ def parse_args() -> argparse.Namespace:
                         help="fastchess executable path; empty searches PATH")
     parser.add_argument("--log-dir", default="logs",
                         help="directory for raw fastchess logs and PGNs")
-    parser.add_argument("--ntfy-url", default=DEFAULT_NTFY_URL,
+    parser.add_argument("--ntfy-url", default=os.environ.get("SPRT_NTFY_URL", ""),
                         help="ntfy topic URL for start/end notifications")
+    parser.add_argument("--ai-stdout-url", default=os.environ.get("SPRT_AI_STDOUT_URL", ""),
+                        help="ntfy topic URL for final user-visible summaries")
+    parser.add_argument("--no-ntfy", action="store_true",
+                        help="suppress all ntfy notifications; use only for distributed shards")
     parser.add_argument("--name", "-n", default="sprt",
                         help="run name used for log and PGN filenames")
     parser.add_argument("--elo0", type=float, default=0.0, help="SPRT null hypothesis Elo")
@@ -147,6 +150,9 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args(argv)
     args.candidate_opts = parse_process_opts(candidate_opts, "--candidate-opts")
     args.reference_opts = parse_process_opts(reference_opts, "--reference-opts")
+    if args.no_ntfy:
+        args.ntfy_url = ""
+        args.ai_stdout_url = ""
     return args
 
 
@@ -347,12 +353,14 @@ def load_ntfy_auth() -> str:
     return ""
 
 
-def post_ntfy(url: str, message: str) -> None:
+def post_ntfy(url: str, message: str, *, title: str = "") -> bool:
     if not url:
-        return
+        return True
 
     data = message.encode()
     req = urllib.request.Request(url, data=data, method="POST")
+    if title:
+        req.add_header("Title", title)
     auth = load_ntfy_auth()
     if auth:
         token = base64.b64encode(auth.encode()).decode()
@@ -361,7 +369,9 @@ def post_ntfy(url: str, message: str) -> None:
     try:
         urllib.request.urlopen(req, timeout=10).close()
     except (OSError, urllib.error.URLError):
-        pass
+        print(f"ntfy post failed: {url}", file=sys.stderr)
+        return False
+    return True
 
 
 def engine_args(name: str, command: str, process_opts: list[str], threads: int, restart: str,
@@ -588,8 +598,11 @@ def main() -> int:
         score_line or "no final score",
         elo_line or "no Elo",
         sprt_line or "no SPRT line",
+        f"Log: {log}",
     ])
-    post_ntfy(args.ntfy_url, f"SPRT {args.name} ({status}):\n{summary}")
+    final_message = f"SPRT {args.name} ({status}):\n{summary}"
+    post_ntfy(args.ntfy_url, final_message, title="SPRT finished")
+    post_ntfy(args.ai_stdout_url, final_message, title="SPRT finished")
 
     return status
 

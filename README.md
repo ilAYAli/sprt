@@ -41,8 +41,8 @@ sprt \
 Notes:
 
 - `--candidate` is required.
-- Defaults to 2000 games, auto concurrency/Threads, ETA enabled,
-  `https://ntfy.wahlman.no/sprt`, and the reference/WOMP book under `~/assets`.
+- Defaults to 2000 games, auto concurrency/Threads, ETA enabled, and the
+  reference/WOMP book under `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
 - `--candidate-opts` and `--reference-opts` pass process args to engines.
 - Process args do not change engine paths; use `--candidate` or `--reference`
@@ -52,4 +52,17 @@ Notes:
 - Run `./sprt --help` for the full option list and defaults.
 - `--elo0`, `--elo1`, `--alpha`, and `--beta` configure the fastchess SPRT.
 - Use `--no-eta` to hide progress ETA.
-- `--ntfy-url` sends start/end notifications. Auth is read from `NTFY_AUTH`, `LICHESS_NTFY_AUTH`, or `~/.ntfy`.
+- `--ntfy-url` sends start/end notifications; default is `SPRT_NTFY_URL` or
+  empty.
+- `--ai-stdout-url` sends final summaries; default is `SPRT_AI_STDOUT_URL` or
+  empty.
+- Use `--no-ntfy` only for distributed shard runs where an aggregate runner
+  sends the final notification.
+- Auth is read from `NTFY_AUTH`, `LICHESS_NTFY_AUTH`, or `~/.ntfy`.
+
+Example local notification setup:
+
+```sh
+export SPRT_NTFY_URL=https://ntfy.example/sprt
+export SPRT_AI_STDOUT_URL=https://ntfy.example/AI_stdout
+```
