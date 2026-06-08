@@ -44,6 +44,8 @@ Notes:
 - Defaults to 2000 games, auto concurrency/Threads, ETA enabled, and the
   reference/WOMP book under `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
+- Prints a final `Warnings: ...` line; raw fastchess warning details remain in
+  the log.
 - `--candidate-opts` and `--reference-opts` pass process args to engines.
 - Process args do not change engine paths; use `--candidate` or `--reference`
   to override a side.

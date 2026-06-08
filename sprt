@@ -567,6 +567,24 @@ def last_matching_line(log: Path, prefix: str) -> str:
     return result
 
 
+def warning_summary(log: Path) -> str:
+    counts: dict[str, int] = {}
+    if not log.is_file():
+        return "Warnings: log unavailable"
+    for line in log.read_text(errors="ignore").splitlines():
+        if not line.startswith("Warning;"):
+            continue
+        warning = line.strip().removeprefix("Warning; ")
+        warning = warning.split(" - move ", 1)[0]
+        counts[warning] = counts.get(warning, 0) + 1
+    if not counts:
+        return "Warnings: none"
+
+    total = sum(counts.values())
+    details = ", ".join(f"{name}={count}" for name, count in sorted(counts.items()))
+    return f"Warnings: {total} ({details})"
+
+
 def main() -> int:
     args = parse_args()
     expand_user_paths(args)
@@ -591,10 +609,13 @@ def main() -> int:
     score_line = last_matching_line(log, "Score of candidate vs reference")
     elo_line = last_matching_line(log, "Elo difference")
     sprt_line = last_matching_line(log, "SPRT: llr")
+    warnings_line = warning_summary(log)
+    print(warnings_line)
     summary = "\n".join([
         score_line or "no final score",
         elo_line or "no Elo",
         sprt_line or "no SPRT line",
+        warnings_line,
         f"Log: {log}",
     ])
     final_message = f"SPRT {args.name} ({status}):\n{summary}"
