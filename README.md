@@ -41,7 +41,7 @@ sprt \
 Notes:
 
 - `--candidate` is required.
-- Defaults to 2000 games, auto concurrency/Threads, ETA enabled, and the
+- Defaults to 2000 games, concurrency 8, Threads 1, ETA enabled, and the
   reference/WOMP book under `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
 - Prints a final `Warnings: ...` line; raw fastchess warning details remain in
