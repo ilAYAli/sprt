@@ -86,9 +86,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--name", "-n", default="sprt",
                         help="run name used for log and PGN filenames")
     parser.add_argument("--elo0", type=float, default=0.0, help="SPRT null hypothesis Elo")
-    parser.add_argument("--elo1", type=float, default=10.0, help="SPRT test hypothesis Elo")
-    parser.add_argument("--alpha", type=float, default=0.05, help="SPRT false-positive rate")
-    parser.add_argument("--beta", type=float, default=0.05, help="SPRT false-negative rate")
+    parser.add_argument("--elo1", type=float, default=5.0, help="SPRT test hypothesis Elo")
+    parser.add_argument("--alpha", type=float, default=0.10, help="SPRT false-positive rate")
+    parser.add_argument("--beta", type=float, default=0.10, help="SPRT false-negative rate")
     parser.add_argument("--restart", choices=["on", "off"], default="on",
                         help="fastchess engine restart mode")
     parser.add_argument("--order", default="random",
