@@ -45,6 +45,7 @@ Notes:
   `alpha=0.10`, `beta=0.10`, ETA enabled, and the reference/WOMP book under
   `~/assets`.
 - Writes `logs/<name>.log` and `logs/<name>.pgn` by default.
+- Does not write fastchess tournament recovery config files.
 - Prints a final `Warnings: ...` line; raw fastchess warning details remain in
   the log.
 - `--candidate-opts` and `--reference-opts` pass process args to engines.

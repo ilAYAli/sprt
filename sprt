@@ -344,6 +344,10 @@ def build_command(args: argparse.Namespace, log_pgn: Path) -> list[str]:
         "append=false",
         "-each",
         f"tc={args.tc}",
+        "-config",
+        f"outname={os.devnull}",
+        "-autosaveinterval",
+        "0",
         "-recover",
         "-output",
         "format=cutechess",
@@ -535,7 +539,6 @@ def main() -> int:
     post_ntfy(args.ntfy_url, start_msg)
 
     status = run_and_tee(build_command(args, pgn), log, args.games, args.eta)
-
     time.sleep(1)
     score_line = last_matching_line(log, "Score of candidate vs reference")
     elo_line = last_matching_line(log, "Elo difference")
