@@ -93,6 +93,8 @@ def parse_args() -> argparse.Namespace:
                         help="fastchess engine restart mode")
     parser.add_argument("--order", default="random",
                         help="fastchess opening order")
+    parser.add_argument("--book-offset", type=int, default=0,
+                        help="zero-based opening-book offset")
     parser.add_argument("--srand", default="",
                         help="fastchess random seed; empty lets fastchess choose")
     eta_group = parser.add_mutually_exclusive_group()
@@ -103,6 +105,8 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args(argv)
     args.candidate_opts = parse_process_opts(candidate_opts, "--candidate-opts")
     args.reference_opts = parse_process_opts(reference_opts, "--reference-opts")
+    if args.book_offset < 0:
+        parser.error("--book-offset must be non-negative")
     if args.no_ntfy:
         args.ntfy_url = ""
     return args
@@ -327,6 +331,7 @@ def build_command(args: argparse.Namespace, log_pgn: Path) -> list[str]:
         f"file={args.book}",
         f"format={args.book_format}",
         f"order={args.order}",
+        f"start={args.book_offset + 1}",
         *engine_args("candidate", args.candidate, args.candidate_opts, args.threads,
                      args.restart, args.candidate_uci),
         *engine_args("reference", args.reference, args.reference_opts, args.threads,
