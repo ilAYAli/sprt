@@ -387,6 +387,11 @@ ELO_RE = re.compile(
     r"LOS: (?P<los>[-0-9.nan]+) %, DrawRatio: (?P<draw>[-0-9.]+) %"
 )
 SPRT_RE = re.compile(r"^SPRT: llr (?P<llr>[-0-9.]+).*ubound (?P<ubound>[-0-9.inf]+)")
+FINISHED_RE = re.compile(
+    r"^Finished game (?P<game>\d+) "
+    r"\((?P<white>candidate|reference) vs (?P<black>candidate|reference)\): "
+    r"(?P<result>1-0|0-1|1/2-1/2)"
+)
 
 
 def format_decimal(value: str, decimals: int) -> str:
@@ -435,6 +440,8 @@ class ProgressFormatter:
         self.start_time = time.monotonic()
         self.score: Optional[re.Match[str]] = None
         self.elo: Optional[re.Match[str]] = None
+        self.pair_score = 0.0
+        self.pentanomial = [0, 0, 0, 0, 0]
 
     def eta(self, completed: int) -> str:
         if completed <= 0:
@@ -446,7 +453,19 @@ class ProgressFormatter:
     def format(self, line: str) -> Optional[str]:
         if line.startswith(NOISY_FASTCHESS_PREFIXES):
             return None
-        if line.startswith("Started game ") or line.startswith("Finished game "):
+        if line.startswith("Started game "):
+            return None
+        if match := FINISHED_RE.match(line):
+            result = match["result"]
+            candidate_white = match["white"] == "candidate"
+            candidate_score = 0.5
+            if result != "1/2-1/2":
+                candidate_won = (result == "1-0") == candidate_white
+                candidate_score = 1.0 if candidate_won else 0.0
+            self.pair_score += candidate_score
+            if int(match["game"]) % 2 == 0:
+                self.pentanomial[int(round(self.pair_score * 2))] += 1
+                self.pair_score = 0.0
             return None
 
         if match := SCORE_RE.match(line):
@@ -465,6 +484,8 @@ class ProgressFormatter:
                 f"Elo {format_field(self.elo['elo'], 1, 5)} +/- {format_field(self.elo['err'], 1, 5)} | "
                 f"LLR {format_llr(match['llr'], match['ubound'])} | "
                 f"LOS {format_field(self.elo['los'], 1, 4)}% | "
+                f"WDL {self.score['wins']}/{self.score['draws']}/{self.score['losses']} | "
+                f"Ptnml {'-'.join(str(value) for value in self.pentanomial)} | "
                 f"draw {format_field(self.elo['draw'], 1, 5)}%"
             )
             progress_with_eta = f"{progress_line} | ETA {self.eta(completed)}"
