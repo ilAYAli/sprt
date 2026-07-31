@@ -24,8 +24,8 @@ Compare UCI options only when the engine configuration is part of the test:
   sprt \
     --reference ~/assets/engines/reference \
     --candidate ~/assets/engines/reference \
-    --reference-uci "nnue_file=$HOME/code/cpp/chess/enyo/net/berserk-d43206fe90e4.nn" \
-    --candidate-uci "nnue_file=$HOME/code/cpp/chess/enyo/net/enyo-native-1.23.0-rc1.nn" \
+    --reference-uci "nnue_file=$HOME/assets/nets/reference.net" \
+    --candidate-uci "nnue_file=$HOME/assets/nets/candidate.net" \
     --games 256
 ```
 
