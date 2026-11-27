@@ -22,6 +22,9 @@ FAKE_FASTCHESS = textwrap.dedent('''\
     start = next(int(a.split("=", 1)[1]) for a in args if a.startswith("start="))
     with open(os.environ["FAKE_CALLS"], "a") as calls:
         calls.write(f"start={start} rounds={rounds}\\n")
+    each = args.index("-each") + 1
+    with open(os.environ["FAKE_CALLS"] + ".each", "a") as limits:
+        limits.write(" ".join(args[each:args.index("-config")]) + "\\n")
     die_after = int(os.environ.get("FAKE_DIE_AFTER", "0"))
     # Pair p (1-based) yields candidate 1-0 as white and 1/2 as black.
     w = d = l = 0
@@ -112,6 +115,28 @@ class ResumeTests(unittest.TestCase):
         self.run_sprt(10, die_after=5)
         self.assertTrue(self.state.exists())
         result = self.run_sprt(10, extra=["--tc", "5+0.05"])
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual("start=101 rounds=5", self.calls.read_text().split("\n")[1])
+
+    def each_limits(self) -> list[str]:
+        return Path(str(self.calls) + ".each").read_text().splitlines()
+
+    def test_clock_is_default_limit(self) -> None:
+        result = self.run_sprt(2, extra=["--tc", "5+0.05"])
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["tc=5+0.05"], self.each_limits())
+
+    def test_fixed_depth_and_nodes_replace_clock(self) -> None:
+        result = self.run_sprt(2, extra=["--depth", "8"])
+        self.assertEqual(0, result.returncode, result.stderr)
+        result = self.run_sprt(2, extra=["--nodes", "5000", "--tc", "5+0.05"])
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(["depth=8", "nodes=5000"], self.each_limits())
+
+    def test_changed_depth_starts_over(self) -> None:
+        self.run_sprt(10, die_after=5, extra=["--depth", "8"])
+        self.assertTrue(self.state.exists())
+        result = self.run_sprt(10, extra=["--depth", "9"])
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("start=101 rounds=5", self.calls.read_text().split("\n")[1])
 

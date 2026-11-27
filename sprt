@@ -74,7 +74,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--threads", "-t", type=int, default=DEFAULT_THREADS,
                         help="engine Threads option")
     parser.add_argument("--tc", default="10+0.1",
-                        help="fastchess time control passed to -each")
+                        help="fastchess time control passed to -each; ignored with --depth or --nodes")
+    parser.add_argument("--depth", type=int, default=0,
+                        help="fixed search depth per move, no clock; 0 uses --tc")
+    parser.add_argument("--nodes", type=int, default=0,
+                        help="fixed node count per move, no clock; 0 uses --tc")
     parser.add_argument("--book-format", default="epd",
                         help="fastchess opening book format")
     parser.add_argument("--fastchess", default="",
@@ -111,6 +115,8 @@ def parse_args() -> argparse.Namespace:
     args.reference_opts = parse_process_opts(reference_opts, "--reference-opts")
     if args.book_offset < 0:
         parser.error("--book-offset must be non-negative")
+    if args.depth < 0 or args.nodes < 0:
+        parser.error("--depth and --nodes must be non-negative")
     if args.no_ntfy:
         args.ntfy_url = ""
     return args
@@ -256,7 +262,7 @@ def startup_message(args: argparse.Namespace) -> str:
     add_engine_header(lines, "reference", args.reference, args.reference_opts)
     lines.extend([
         run_field("games", args.games),
-        run_field("tc", args.tc),
+        run_field("limit", limit_label(args)),
         run_field("concurrency", args.concurrency, getattr(args, "concurrency_source", "")),
         run_field("threads", args.threads, getattr(args, "threads_source", "")),
         run_field("elo", f"{args.elo0:g}/{args.elo1:g}"),
@@ -327,6 +333,20 @@ def engine_args(name: str, command: str, process_opts: list[str], threads: int, 
     return args
 
 
+def limit_args(args: argparse.Namespace) -> list[str]:
+    """fastchess -each search limit: fixed depth and/or nodes, else the clock."""
+    limits = []
+    if args.depth:
+        limits.append(f"depth={args.depth}")
+    if args.nodes:
+        limits.append(f"nodes={args.nodes}")
+    return limits or [f"tc={args.tc}"]
+
+
+def limit_label(args: argparse.Namespace) -> str:
+    return " ".join(limit_args(args))
+
+
 def total_rounds(games: int) -> int:
     return max(1, (games + 1) // 2)
 
@@ -356,7 +376,7 @@ def build_command(args: argparse.Namespace, log_pgn: Path, *, pairs_done: int = 
         "notation=san",
         f"append={'true' if pairs_done else 'false'}",
         "-each",
-        f"tc={args.tc}",
+        *limit_args(args),
         "-config",
         f"outname={os.devnull}",
         "-autosaveinterval",
@@ -475,6 +495,9 @@ def resume_params(args: argparse.Namespace) -> dict[str, object]:
         "restart": args.restart,
         "srand": args.srand,
         "sprt": [args.elo0, args.elo1, args.alpha, args.beta],
+        # Only present for fixed limits, so clock-run checkpoints stay valid.
+        **({"depth": args.depth} if args.depth else {}),
+        **({"nodes": args.nodes} if args.nodes else {}),
     }
 
 
